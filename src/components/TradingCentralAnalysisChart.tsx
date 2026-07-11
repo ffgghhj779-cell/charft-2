@@ -137,8 +137,9 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             if (param.time === undefined || param.point === undefined || param.point.x < 0 || param.point.y < 0) {
                 bottomChart.clearCrosshairPosition();
             } else {
-                const rsiVal = param.seriesPrices.get(rsiSeries) || 50; 
-                bottomChart.setCrosshairPosition(rsiVal as number, param.time, rsiSeries);
+                const rsiData = param.seriesData.get(rsiSeries) as any; 
+                const rsiVal = rsiData ? rsiData.value : 50;
+                bottomChart.setCrosshairPosition(rsiVal, param.time, rsiSeries);
             }
         });
 
@@ -146,7 +147,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             if (param.time === undefined || param.point === undefined || param.point.x < 0 || param.point.y < 0) {
                 topChart.clearCrosshairPosition();
             } else {
-                const candleData = param.seriesPrices.get(candleSeries) as any;
+                const candleData = param.seriesData.get(candleSeries) as any;
                 const priceVal = candleData ? candleData.close : 0;
                 topChart.setCrosshairPosition(priceVal, param.time, candleSeries);
             }
