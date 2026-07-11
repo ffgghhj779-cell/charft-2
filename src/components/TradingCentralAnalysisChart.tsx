@@ -16,6 +16,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
     // High-frequency UI refs (avoid React state for 10 updates/second to ensure buttery smooth performance)
     const priceDisplayRef = useRef<HTMLSpanElement>(null);
     const timeDisplayRef = useRef<HTMLDivElement>(null);
+    const previousPriceRef = useRef<number>(0);
     
     useEffect(() => {
         if (!topChartContainerRef.current || !bottomChartContainerRef.current) return;
@@ -24,55 +25,64 @@ export const TradingCentralAnalysisChart: React.FC = () => {
 
         const commonChartOptions = {
             layout: {
-                background: { type: ColorType.Solid, color: '#ffffff' },
-                textColor: '#374151',
+                background: { type: ColorType.Solid, color: 'transparent' }, // Transparent so our premium CSS background shows through
+                textColor: '#6B7280',
                 fontFamily: premiumFont,
             },
             grid: {
-                vertLines: { color: 'rgba(197, 203, 206, 0.4)', style: LineStyle.Dotted },
-                horzLines: { color: 'rgba(197, 203, 206, 0.4)', style: LineStyle.Dotted },
+                vertLines: { color: 'rgba(229, 231, 235, 0.6)', style: LineStyle.Dotted },
+                horzLines: { color: 'rgba(229, 231, 235, 0.6)', style: LineStyle.Dotted },
             },
             crosshair: {
                 mode: CrosshairMode.Normal,
-                vertLine: { width: 1 as const, color: '#9CA3AF', style: LineStyle.Dashed, labelBackgroundColor: '#4B5563' },
-                horzLine: { width: 1 as const, color: '#9CA3AF', style: LineStyle.Dashed, labelBackgroundColor: '#4B5563' },
+                vertLine: { width: 1 as const, color: '#9CA3AF', style: LineStyle.Solid, labelBackgroundColor: '#1F2937' },
+                horzLine: { width: 1 as const, color: '#9CA3AF', style: LineStyle.Solid, labelBackgroundColor: '#1F2937' },
             },
             handleScroll: { 
                 vertTouchDrag: false, 
-                horzTouchDrag: true, // Perfect mobile horizontal swipe
+                horzTouchDrag: true, 
                 pressedMouseMove: true, 
                 mouseWheel: true 
             },
             handleScale: { 
-                pinch: true, // Two-finger pinch to zoom on mobile
+                pinch: true, 
                 axisPressedMouseMove: { time: true, price: false },
                 mouseWheel: true 
             },
-            kineticScroll: { touch: true, mouse: false }, // Smooth scrolling physics
+            kineticScroll: { touch: true, mouse: false }, 
         };
 
         const topChart = createChart(topChartContainerRef.current, {
             ...commonChartOptions,
             rightPriceScale: {
-                borderColor: 'rgba(197, 203, 206, 0.8)',
+                borderColor: 'rgba(209, 213, 219, 0.8)',
                 autoScale: true,
             },
             timeScale: {
-                borderColor: 'rgba(197, 203, 206, 0.8)',
+                borderColor: 'rgba(209, 213, 219, 0.8)',
                 timeVisible: true,
-                secondsVisible: false, // 1m candles don't need seconds displayed on axis
+                secondsVisible: false, 
+            },
+            watermark: {
+                color: 'rgba(17, 24, 39, 0.03)',
+                visible: true,
+                text: 'TRADING CENTRAL',
+                fontSize: 64,
+                fontFamily: premiumFont,
+                horzAlign: 'center',
+                vertAlign: 'center',
             },
         });
 
         const bottomChart = createChart(bottomChartContainerRef.current, {
             ...commonChartOptions,
             rightPriceScale: {
-                borderColor: 'rgba(197, 203, 206, 0.8)',
+                borderColor: 'rgba(209, 213, 219, 0.8)',
                 autoScale: false,
                 alignLabels: true,
             },
             timeScale: {
-                borderColor: 'rgba(197, 203, 206, 0.8)',
+                borderColor: 'rgba(209, 213, 219, 0.8)',
                 timeVisible: true,
                 visible: true,
             },
@@ -86,12 +96,12 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             if (range) topChart.timeScale().setVisibleLogicalRange(range);
         });
 
-        // --- Series Definitions (using lightweight-charts v4 API) ---
+        // --- Elite Series Definitions ---
         
         const bbAreaSeries = topChart.addAreaSeries({
-            topColor: 'rgba(255, 182, 193, 0.35)',
-            bottomColor: 'rgba(255, 182, 193, 0.05)',
-            lineColor: 'rgba(255, 182, 193, 0.9)',
+            topColor: 'rgba(225, 29, 72, 0.15)', // Premium Crimson Glow
+            bottomColor: 'rgba(225, 29, 72, 0.01)',
+            lineColor: 'rgba(225, 29, 72, 0.4)',
             lineWidth: 1,
             crosshairMarkerVisible: false,
             priceLineVisible: false,
@@ -99,11 +109,11 @@ export const TradingCentralAnalysisChart: React.FC = () => {
         });
 
         const candleSeries = topChart.addCandlestickSeries({
-            upColor: '#10B981', // Premium green
-            downColor: '#EF4444', // Premium red
+            upColor: '#059669', // Institutional Emerald
+            downColor: '#E11D48', // Institutional Crimson
             borderVisible: false,
-            wickUpColor: '#10B981',
-            wickDownColor: '#EF4444',
+            wickUpColor: '#059669',
+            wickDownColor: '#E11D48',
         });
 
         const ma50Series = topChart.addLineSeries({
@@ -130,7 +140,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
         });
 
         const rsiMaSeries = bottomChart.addLineSeries({
-            color: '#EF4444', // Red
+            color: '#E11D48', // Crimson
             lineWidth: 2,
             priceLineVisible: false,
             lastValueVisible: false,
@@ -141,8 +151,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             if (param.time === undefined || param.point === undefined || param.point.x < 0 || param.point.y < 0) {
                 bottomChart.clearCrosshairPosition();
             } else {
-                const rsiData = param.seriesData.get(rsiSeries) as any; 
-                const rsiVal = rsiData ? rsiData.value : 50;
+                const rsiVal = param.seriesPrices.get(rsiSeries) || 50; 
                 bottomChart.setCrosshairPosition(rsiVal as number, param.time, rsiSeries);
             }
         });
@@ -151,7 +160,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             if (param.time === undefined || param.point === undefined || param.point.x < 0 || param.point.y < 0) {
                 topChart.clearCrosshairPosition();
             } else {
-                const candleData = param.seriesData.get(candleSeries) as any;
+                const candleData = param.seriesPrices.get(candleSeries) as any;
                 const priceVal = candleData ? candleData.close : 0;
                 topChart.setCrosshairPosition(priceVal, param.time, candleSeries);
             }
@@ -171,19 +180,19 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             const createTargetLine = (series: any, price: number, color: string, style: LineStyle, width: number) => {
                 series.createPriceLine({ price, color, lineWidth: width, lineStyle: style, axisLabelVisible: true, title: '' });
             };
-            createTargetLine(candleSeries, latestPrice * 1.005, '#10B981', LineStyle.Solid, 2); // Green Top
-            createTargetLine(candleSeries, latestPrice * 1.002, '#10B981', LineStyle.Solid, 2); // Green Bottom
+            createTargetLine(candleSeries, latestPrice * 1.005, '#059669', LineStyle.Solid, 2); // Green Top
+            createTargetLine(candleSeries, latestPrice * 1.002, '#059669', LineStyle.Solid, 2); // Green Bottom
             createTargetLine(candleSeries, latestPrice * 1.001, '#111827', LineStyle.Solid, 2); // Black
             createTargetLine(candleSeries, latestPrice * 0.999, '#2563EB', LineStyle.Solid, 2); // Blue
-            createTargetLine(candleSeries, latestPrice * 0.998, '#EF4444', LineStyle.Dashed, 1); // Red 1
-            createTargetLine(candleSeries, latestPrice * 0.995, '#EF4444', LineStyle.Dashed, 1); // Red 2
+            createTargetLine(candleSeries, latestPrice * 0.998, '#E11D48', LineStyle.Dashed, 1); // Red 1
+            createTargetLine(candleSeries, latestPrice * 0.995, '#E11D48', LineStyle.Dashed, 1); // Red 2
 
             createTargetLine(rsiSeries, 70, '#9CA3AF', LineStyle.Dotted, 1);
             createTargetLine(rsiSeries, 50, '#9CA3AF', LineStyle.Dotted, 1);
             createTargetLine(rsiSeries, 30, '#9CA3AF', LineStyle.Dotted, 1);
         };
 
-        // --- REAL Market Data Engine (Initial fetch + WebSockets) ---
+        // --- REAL Market Data Engine ---
         let ws: WebSocket;
         let isChartReady = false;
         let currentCandles: any[] = [];
@@ -191,7 +200,6 @@ export const TradingCentralAnalysisChart: React.FC = () => {
 
         const initDataEngine = async () => {
             try {
-                // 1. Fetch historical 1-minute candles for immediate chart rendering
                 const res = await fetch('https://api.binance.com/api/v3/klines?symbol=PAXGUSDT&interval=1m&limit=250');
                 const rawData = await res.json();
 
@@ -201,7 +209,6 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                     currentCloses.push(parseFloat(row[4]));
                 });
 
-                // Calculate Initial Indicators
                 const sma50Result = SMA.calculate({ period: 50, values: currentCloses });
                 const sma20Result = SMA.calculate({ period: 20, values: currentCloses });
                 const bbResult = BollingerBands.calculate({ period: 20, stdDev: 2, values: currentCloses });
@@ -215,7 +222,6 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                 const rsiMaResult = SMA.calculate({ period: 9, values: rsiResult });
                 const rsiMaSeriesData = rsiMaResult.map((val, idx) => ({ time: rsiSeriesData[idx + 8].time, value: val }));
 
-                // Inject Data
                 candleSeries.setData(currentCandles);
                 ma50Series.setData(ma50);
                 ma20Series.setData(ma20);
@@ -224,8 +230,9 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                 rsiMaSeries.setData(rsiMaSeriesData);
 
                 const latestPrice = currentCloses[currentCloses.length - 1];
+                previousPriceRef.current = latestPrice;
                 if (priceDisplayRef.current) priceDisplayRef.current.innerText = `$${latestPrice.toFixed(2)}`;
-                if (timeDisplayRef.current) timeDisplayRef.current.innerText = 'Connected (Live Streaming...)';
+                if (timeDisplayRef.current) timeDisplayRef.current.innerText = '● Live Data Stream Connected';
 
                 drawTargetLines(latestPrice);
 
@@ -234,7 +241,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
 
                 isChartReady = true;
 
-                // 2. Open High-Frequency WebSocket for Live Ticks
+                // Open WebSocket
                 ws = new WebSocket('wss://stream.binance.com:9443/ws/paxgusdt@kline_1m');
                 
                 ws.onmessage = (event) => {
@@ -245,7 +252,6 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                     
                     const tickTime = (kline.t / 1000) as Time;
                     const tickClose = parseFloat(kline.c);
-                    const isFinal = kline.x; // Is this candle closed?
 
                     const newCandle = {
                         time: tickTime,
@@ -255,30 +261,41 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                         close: tickClose,
                     };
 
-                    // Live update the candle series (Dances up and down live!)
                     candleSeries.update(newCandle);
 
-                    // Update UI Reference instantly (No React State lag!)
-                    if (priceDisplayRef.current) priceDisplayRef.current.innerText = `$${tickClose.toFixed(2)}`;
+                    // --- Dynamic Price Flashing Effect ---
+                    if (priceDisplayRef.current) {
+                        priceDisplayRef.current.innerText = `$${tickClose.toFixed(2)}`;
+                        
+                        if (tickClose > previousPriceRef.current) {
+                            priceDisplayRef.current.className = 'text-lg md:text-xl font-bold text-[#059669] transition-none';
+                        } else if (tickClose < previousPriceRef.current) {
+                            priceDisplayRef.current.className = 'text-lg md:text-xl font-bold text-[#E11D48] transition-none';
+                        }
+                        
+                        // Fade back to neutral instantly after flash
+                        setTimeout(() => {
+                            if (priceDisplayRef.current) {
+                                priceDisplayRef.current.className = 'text-lg md:text-xl font-bold text-gray-900 transition-colors duration-500';
+                            }
+                        }, 250);
+                    }
+                    previousPriceRef.current = tickClose;
 
-                    // Maintain our tracking arrays
+                    // Maintain arrays
                     const lastRecordedTime = currentCandles[currentCandles.length - 1].time;
                     if (tickTime === lastRecordedTime) {
-                        // Updating current unclosed candle
                         currentCandles[currentCandles.length - 1] = newCandle;
                         currentCloses[currentCloses.length - 1] = tickClose;
                     } else {
-                        // New minute candle started
                         currentCandles.push(newCandle);
                         currentCloses.push(tickClose);
-                        // Memory cleanup to prevent infinite array growth
                         if (currentCandles.length > 500) {
                             currentCandles.shift();
                             currentCloses.shift();
                         }
                     }
 
-                    // Dynamically Update Indicators on the last tick
                     try {
                         const newSma50 = SMA.calculate({ period: 50, values: currentCloses });
                         if (newSma50.length > 0) ma50Series.update({ time: tickTime, value: newSma50[newSma50.length - 1] });
@@ -292,12 +309,10 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                         const newRsi = RSI.calculate({ period: 14, values: currentCloses });
                         if (newRsi.length > 0) {
                             rsiSeries.update({ time: tickTime, value: newRsi[newRsi.length - 1] });
-                            
-                            // Re-calculate RSI MA
                             const newRsiMa = SMA.calculate({ period: 9, values: newRsi });
                             if (newRsiMa.length > 0) rsiMaSeries.update({ time: tickTime, value: newRsiMa[newRsiMa.length - 1] });
                         }
-                    } catch(e) { /* math error on partial tick */ }
+                    } catch(e) {}
                 };
 
             } catch (error) {
@@ -308,7 +323,6 @@ export const TradingCentralAnalysisChart: React.FC = () => {
 
         initDataEngine();
 
-        // --- Perfect ResizeObserver Implementation ---
         const resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 if (entry.target === topChartContainerRef.current) {
@@ -333,63 +347,75 @@ export const TradingCentralAnalysisChart: React.FC = () => {
     }, []);
 
     return (
-        <div style={{ touchAction: 'none' }} className="relative w-full h-screen min-h-[600px] bg-white text-gray-900 font-sans antialiased flex flex-col">
+        <div 
+            style={{ touchAction: 'none' }} 
+            className="relative w-full h-screen min-h-[600px] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white via-gray-50 to-gray-200 text-gray-900 font-sans antialiased flex flex-col overflow-hidden shadow-2xl"
+        >
             
-            {/* Elite Tailwind Mobile-Responsive Overlay Header */}
-            <div className="absolute top-0 left-0 right-0 p-4 md:px-6 md:pt-6 md:pb-2 z-10 pointer-events-none flex flex-col bg-white">
+            {/* Elite Glassmorphic Overlay Header */}
+            <div className="absolute top-0 left-0 right-0 p-4 md:px-6 md:pt-6 md:pb-3 z-10 pointer-events-none flex flex-col bg-white/60 backdrop-blur-xl border-b border-white/40 shadow-sm transition-all">
                 
-                <div className="flex flex-wrap items-center gap-3 mb-1">
-                    <span className="text-xl md:text-[22px] font-bold text-black tracking-tight">Gold</span>
-                    <span className="border border-gray-300 text-gray-700 px-1.5 py-0.5 text-[11px] font-semibold tracking-wider">
+                <div className="flex flex-wrap items-center gap-3 mb-1.5">
+                    <span className="text-xl md:text-[22px] font-extrabold text-gray-900 tracking-tight">Gold</span>
+                    <span className="bg-white/80 border border-gray-200/60 shadow-sm text-gray-600 px-2 py-0.5 rounded text-[11px] font-bold tracking-widest uppercase">
                         30 MIN
                     </span>
-                    {/* Live updating DOM ref without React re-renders */}
-                    <span ref={priceDisplayRef} className="text-lg md:text-xl font-bold text-black ml-auto md:ml-0 transition-colors duration-75">
+                    {/* Live flashing price */}
+                    <span ref={priceDisplayRef} className="text-lg md:text-xl font-bold text-gray-900 ml-auto md:ml-0 transition-colors duration-500">
                         Loading...
                     </span>
                 </div>
                 
-                <div ref={timeDisplayRef} className="text-xs md:text-[13px] text-gray-500 font-normal mb-3">
-                    Connecting to Binance WebSockets...
+                <div className="flex items-center gap-1.5 mb-4">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <div ref={timeDisplayRef} className="text-xs md:text-[13px] text-gray-500 font-medium">
+                        Connecting to Binance Engine...
+                    </div>
                 </div>
 
-                <div className="w-full h-px bg-gray-200 mb-2"></div>
+                <div className="w-full h-px bg-gradient-to-r from-gray-200 via-gray-200 to-transparent mb-3"></div>
 
-                <div className="flex flex-col md:flex-row md:justify-between md:items-center text-[11px] font-medium text-gray-500">
-                    <div className="flex gap-5">
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-3 h-0.5 bg-[#FF6B6B]"></div>
+                <div className="flex flex-col md:flex-row md:justify-between md:items-center text-[11px] font-semibold text-gray-600 uppercase tracking-wide">
+                    <div className="flex gap-6">
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-0.5 bg-[#E11D48] shadow-[0_0_8px_rgba(225,29,72,0.6)]"></div>
                             <span>MA 20 + Bollinger Bands</span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-3 h-0.5 bg-[#2563EB]"></div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-4 h-0.5 bg-[#2563EB] shadow-[0_0_8px_rgba(37,99,235,0.6)]"></div>
                             <span>MA 50</span>
                         </div>
                     </div>
-                    <div className="text-gray-400 hidden md:block">
-                        Research © {new Date().getFullYear()} Trading Central
+                    <div className="text-gray-400 hidden md:block tracking-widest">
+                        RESEARCH © {new Date().getFullYear()} TRADING CENTRAL
                     </div>
                 </div>
             </div>
 
-            {/* Responsive Chart Container */}
-            <div className="flex flex-col w-full flex-grow pt-[120px] pb-4 px-2 relative">
-                <div ref={topChartContainerRef} className="w-full h-[70%]" />
+            {/* Responsive Chart Container with refined padding for Glass Header */}
+            <div className="flex flex-col w-full flex-grow pt-[140px] pb-6 px-4 md:px-6 relative z-0">
                 
-                <div className="w-full h-[30%] relative mt-2">
+                {/* Premium container shadows and rounding */}
+                <div className="w-full h-[70%] bg-white/40 rounded-xl shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)] p-1 overflow-hidden relative backdrop-blur-sm">
+                    <div ref={topChartContainerRef} className="w-full h-full" />
+                </div>
+                
+                <div className="w-full h-[30%] bg-white/40 rounded-xl shadow-[inset_0_0_0_1px_rgba(255,255,255,0.6)] p-1 overflow-hidden relative mt-3 backdrop-blur-sm">
                     <div ref={bottomChartContainerRef} className="w-full h-full" />
-                    {/* Bottom Pane Legend (RSI) */}
-                    <div className="absolute top-2 left-4 z-10 pointer-events-none flex gap-4 text-[11px] font-medium text-gray-500 bg-white/80 px-2 py-1 rounded">
-                        <div className="flex items-center gap-1.5">
+                    
+                    {/* Glassmorphic Bottom Pane Legend */}
+                    <div className="absolute top-3 left-4 z-10 pointer-events-none flex gap-4 text-[11px] font-bold tracking-widest text-gray-600 uppercase bg-white/80 backdrop-blur-md border border-white/50 shadow-sm px-3 py-1.5 rounded-lg">
+                        <div className="flex items-center gap-2">
                             <div className="w-3 h-0.5 bg-[#2563EB]"></div>
                             <span>RSI</span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-3 h-0.5 bg-[#FF6B6B]"></div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-0.5 bg-[#E11D48]"></div>
                             <span>9MA</span>
                         </div>
                     </div>
                 </div>
+                
             </div>
         </div>
     );
