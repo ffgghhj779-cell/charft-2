@@ -7,9 +7,6 @@ import {
     Time,
     IChartApi,
     SeriesMarker,
-    AreaSeries,
-    CandlestickSeries,
-    LineSeries,
 } from 'lightweight-charts';
 import { SMA, RSI, BollingerBands } from 'technicalindicators';
 
@@ -84,7 +81,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
 
         // --- Series Definitions ---
         
-        const bbAreaSeries = topChart.addSeries(AreaSeries, {
+        const bbAreaSeries = topChart.addAreaSeries({
             topColor: 'rgba(255, 182, 193, 0.35)',
             bottomColor: 'rgba(255, 182, 193, 0.05)',
             lineColor: 'rgba(255, 182, 193, 0.9)',
@@ -94,7 +91,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             lastValueVisible: false,
         });
 
-        const candleSeries = topChart.addSeries(CandlestickSeries, {
+        const candleSeries = topChart.addCandlestickSeries({
             upColor: '#10B981', // Premium green
             downColor: '#EF4444', // Premium red
             borderVisible: false,
@@ -102,7 +99,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             wickDownColor: '#EF4444',
         });
 
-        const ma50Series = topChart.addSeries(LineSeries, {
+        const ma50Series = topChart.addLineSeries({
             color: '#2563EB', // Royal Blue
             lineWidth: 2,
             crosshairMarkerVisible: false,
@@ -110,7 +107,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             lastValueVisible: false,
         });
 
-        const ma20Series = topChart.addSeries(LineSeries, {
+        const ma20Series = topChart.addLineSeries({
             color: '#EF4444', // Red
             lineWidth: 2,
             crosshairMarkerVisible: false,
@@ -118,14 +115,14 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             lastValueVisible: false,
         });
 
-        const rsiSeries = bottomChart.addSeries(LineSeries, {
+        const rsiSeries = bottomChart.addLineSeries({
             color: '#2563EB', // Royal Blue
             lineWidth: 2,
             priceLineVisible: false,
             lastValueVisible: false,
         });
 
-        const rsiMaSeries = bottomChart.addSeries(LineSeries, {
+        const rsiMaSeries = bottomChart.addLineSeries({
             color: '#EF4444', // Red
             lineWidth: 2,
             priceLineVisible: false,
@@ -137,9 +134,8 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             if (param.time === undefined || param.point === undefined || param.point.x < 0 || param.point.y < 0) {
                 bottomChart.clearCrosshairPosition();
             } else {
-                const rsiData = param.seriesData.get(rsiSeries) as any; 
-                const rsiVal = rsiData ? rsiData.value : 50;
-                bottomChart.setCrosshairPosition(rsiVal, param.time, rsiSeries);
+                const rsiVal = param.seriesPrices.get(rsiSeries) || 50; 
+                bottomChart.setCrosshairPosition(rsiVal as number, param.time, rsiSeries);
             }
         });
 
@@ -147,7 +143,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             if (param.time === undefined || param.point === undefined || param.point.x < 0 || param.point.y < 0) {
                 topChart.clearCrosshairPosition();
             } else {
-                const candleData = param.seriesData.get(candleSeries) as any;
+                const candleData = param.seriesPrices.get(candleSeries) as any;
                 const priceVal = candleData ? candleData.close : 0;
                 topChart.setCrosshairPosition(priceVal, param.time, candleSeries);
             }
