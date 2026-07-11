@@ -336,32 +336,34 @@ export const TradingCentralAnalysisChart: React.FC = () => {
         <div style={{ touchAction: 'none' }} className="relative w-full h-screen min-h-[600px] bg-white text-gray-900 font-sans antialiased flex flex-col">
             
             {/* Elite Tailwind Mobile-Responsive Overlay Header */}
-            <div className="absolute top-0 left-0 right-0 p-4 md:p-6 z-10 pointer-events-none flex flex-col gap-2">
+            <div className="absolute top-0 left-0 right-0 p-4 md:px-6 md:pt-6 md:pb-2 z-10 pointer-events-none flex flex-col bg-white">
                 
-                <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-xl md:text-2xl font-bold tracking-tight">Gold (Live Tick)</span>
-                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-md text-xs font-semibold tracking-wider">
-                        1 MIN
+                <div className="flex flex-wrap items-center gap-3 mb-1">
+                    <span className="text-xl md:text-[22px] font-bold text-black tracking-tight">Gold</span>
+                    <span className="border border-gray-300 text-gray-700 px-1.5 py-0.5 text-[11px] font-semibold tracking-wider">
+                        30 MIN
                     </span>
                     {/* Live updating DOM ref without React re-renders */}
-                    <span ref={priceDisplayRef} className="text-lg md:text-xl font-semibold text-emerald-500 transition-colors duration-75">
+                    <span ref={priceDisplayRef} className="text-lg md:text-xl font-bold text-black ml-auto md:ml-0 transition-colors duration-75">
                         Loading...
                     </span>
                 </div>
                 
-                <div ref={timeDisplayRef} className="text-xs md:text-sm text-gray-500 font-medium">
+                <div ref={timeDisplayRef} className="text-xs md:text-[13px] text-gray-500 font-normal mb-3">
                     Connecting to Binance WebSockets...
                 </div>
 
-                <div className="flex flex-col md:flex-row md:justify-between md:items-center text-xs font-medium mt-2 gap-2">
-                    <div className="flex gap-4">
-                        <div className="flex items-center gap-2">
-                            <div className="w-4 h-0.5 bg-red-500"></div>
-                            <span className="text-gray-600">MA 20 + Bollinger Bands</span>
+                <div className="w-full h-px bg-gray-200 mb-2"></div>
+
+                <div className="flex flex-col md:flex-row md:justify-between md:items-center text-[11px] font-medium text-gray-500">
+                    <div className="flex gap-5">
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-3 h-0.5 bg-[#FF6B6B]"></div>
+                            <span>MA 20 + Bollinger Bands</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-4 h-0.5 bg-blue-600"></div>
-                            <span className="text-gray-600">MA 50</span>
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-3 h-0.5 bg-[#2563EB]"></div>
+                            <span>MA 50</span>
                         </div>
                     </div>
                     <div className="text-gray-400 hidden md:block">
@@ -371,9 +373,23 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             </div>
 
             {/* Responsive Chart Container */}
-            <div className="flex flex-col w-full flex-grow pt-32 md:pt-28 pb-4 px-2">
+            <div className="flex flex-col w-full flex-grow pt-[120px] pb-4 px-2 relative">
                 <div ref={topChartContainerRef} className="w-full h-[70%]" />
-                <div ref={bottomChartContainerRef} className="w-full h-[30%] border-t border-gray-200 mt-2" />
+                
+                <div className="w-full h-[30%] relative mt-2">
+                    <div ref={bottomChartContainerRef} className="w-full h-full" />
+                    {/* Bottom Pane Legend (RSI) */}
+                    <div className="absolute top-2 left-4 z-10 pointer-events-none flex gap-4 text-[11px] font-medium text-gray-500 bg-white/80 px-2 py-1 rounded">
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-3 h-0.5 bg-[#2563EB]"></div>
+                            <span>RSI</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-3 h-0.5 bg-[#FF6B6B]"></div>
+                            <span>9MA</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );
