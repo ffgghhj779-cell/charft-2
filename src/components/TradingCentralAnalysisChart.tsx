@@ -7,6 +7,9 @@ import {
     Time,
     IChartApi,
     SeriesMarker,
+    AreaSeries,
+    CandlestickSeries,
+    LineSeries,
 } from 'lightweight-charts';
 
 export const TradingCentralAnalysisChart: React.FC = () => {
@@ -30,8 +33,8 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             },
             crosshair: {
                 mode: CrosshairMode.Normal,
-                vertLine: { width: 1, color: '#9CA3AF', style: LineStyle.Dashed, labelBackgroundColor: '#4B5563' },
-                horzLine: { width: 1, color: '#9CA3AF', style: LineStyle.Dashed, labelBackgroundColor: '#4B5563' },
+                vertLine: { width: 1 as const, color: '#9CA3AF', style: LineStyle.Dashed, labelBackgroundColor: '#4B5563' },
+                horzLine: { width: 1 as const, color: '#9CA3AF', style: LineStyle.Dashed, labelBackgroundColor: '#4B5563' },
             },
             handleScroll: { vertTouchDrag: false },
             handleScale: { axisPressedMouseMove: { time: true, price: false } },
@@ -78,7 +81,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
 
         // --- Series Definitions ---
         
-        const bbAreaSeries = topChart.addAreaSeries({
+        const bbAreaSeries = topChart.addSeries(AreaSeries, {
             topColor: 'rgba(255, 182, 193, 0.35)',
             bottomColor: 'rgba(255, 182, 193, 0.05)',
             lineColor: 'rgba(255, 182, 193, 0.9)',
@@ -88,7 +91,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             lastValueVisible: false,
         });
 
-        const candleSeries = topChart.addCandlestickSeries({
+        const candleSeries = topChart.addSeries(CandlestickSeries, {
             upColor: '#10B981', // Premium green
             downColor: '#EF4444', // Premium red
             borderVisible: false,
@@ -96,7 +99,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             wickDownColor: '#EF4444',
         });
 
-        const ma50Series = topChart.addLineSeries({
+        const ma50Series = topChart.addSeries(LineSeries, {
             color: '#2563EB', // Royal Blue
             lineWidth: 2,
             crosshairMarkerVisible: false,
@@ -104,7 +107,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             lastValueVisible: false,
         });
 
-        const ma20Series = topChart.addLineSeries({
+        const ma20Series = topChart.addSeries(LineSeries, {
             color: '#EF4444', // Red
             lineWidth: 2,
             crosshairMarkerVisible: false,
@@ -112,14 +115,14 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             lastValueVisible: false,
         });
 
-        const rsiSeries = bottomChart.addLineSeries({
+        const rsiSeries = bottomChart.addSeries(LineSeries, {
             color: '#2563EB', // Royal Blue
             lineWidth: 1.5,
             priceLineVisible: false,
             lastValueVisible: false,
         });
 
-        const rsiMaSeries = bottomChart.addLineSeries({
+        const rsiMaSeries = bottomChart.addSeries(LineSeries, {
             color: '#EF4444', // Red
             lineWidth: 1.5,
             priceLineVisible: false,
