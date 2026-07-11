@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     createChart,
     CrosshairMode,
@@ -11,10 +11,13 @@ import {
     CandlestickSeries,
     LineSeries,
 } from 'lightweight-charts';
+import { SMA, RSI, BollingerBands } from 'technicalindicators';
 
 export const TradingCentralAnalysisChart: React.FC = () => {
     const topChartContainerRef = useRef<HTMLDivElement>(null);
     const bottomChartContainerRef = useRef<HTMLDivElement>(null);
+    const [lastUpdateTime, setLastUpdateTime] = useState<string>('');
+    const [currentPriceDisplay, setCurrentPriceDisplay] = useState<string>('Loading...');
     
     useEffect(() => {
         if (!topChartContainerRef.current || !bottomChartContainerRef.current) return;
@@ -44,7 +47,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             ...commonChartOptions,
             rightPriceScale: {
                 borderColor: 'rgba(197, 203, 206, 0.8)',
-                autoScale: false,
+                autoScale: true, // Auto-scale to real data
             },
             timeScale: {
                 borderColor: 'rgba(197, 203, 206, 0.8)',
@@ -61,7 +64,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             ...commonChartOptions,
             rightPriceScale: {
                 borderColor: 'rgba(197, 203, 206, 0.8)',
-                autoScale: true,
+                autoScale: false, // RSI is strictly 0-100
                 alignLabels: true,
             },
             timeScale: {
@@ -144,114 +147,114 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                 topChart.clearCrosshairPosition();
             } else {
                 const candleData = param.seriesPrices.get(candleSeries) as any;
-                const priceVal = candleData ? candleData.close : 4050;
+                const priceVal = candleData ? candleData.close : 0;
                 topChart.setCrosshairPosition(priceVal, param.time, candleSeries);
             }
         });
 
-        // --- Data Generation (Premium Smooth Mock) ---
-        const generateData = () => {
-            const candles = [];
-            const ma50 = [];
-            const ma20 = [];
-            const bbArea = [];
-            const rsi = [];
-            const rsiMa = [];
+        // --- REAL Market Data Fetching & Calculation ---
+        const fetchRealData = async () => {
+            try {
+                // Fetching real Gold (PAX Gold) from Binance free API
+                const res = await fetch('https://api.binance.com/api/v3/klines?symbol=PAXGUSDT&interval=30m&limit=250');
+                const rawData = await res.json();
 
-            let basePrice = 4050;
-            const startTime = new Date('2026-07-07T00:00:00Z').getTime() / 1000;
-            
-            // Generate a smooth trend using sin waves
-            for (let i = 0; i < 200; i++) {
-                const time = (startTime + i * 1800) as Time;
-                
-                // Smooth market movement
-                const trend = Math.sin(i / 15) * 20 + Math.cos(i / 5) * 5;
-                const open = basePrice;
-                const close = open + trend + (Math.random() - 0.5) * 5;
-                const high = Math.max(open, close) + Math.random() * 8;
-                const low = Math.min(open, close) - Math.random() * 8;
-                basePrice = close;
+                const candles: any[] = [];
+                const closes: number[] = [];
 
-                candles.push({ time, open, high, low, close });
+                rawData.forEach((row: any) => {
+                    const time = (row[0] / 1000) as Time;
+                    const open = parseFloat(row[1]);
+                    const high = parseFloat(row[2]);
+                    const low = parseFloat(row[3]);
+                    const close = parseFloat(row[4]);
 
-                // Moving Averages with lag
-                const simulatedMa50 = basePrice - 15 + Math.sin(i / 12) * 15;
-                const simulatedMa20 = basePrice - 5 + Math.sin(i / 6) * 10;
-                
-                ma50.push({ time, value: simulatedMa50 });
-                ma20.push({ time, value: simulatedMa20 });
-                // Bollinger upper bound area simulation
-                bbArea.push({ time, value: simulatedMa20 + 20 + Math.random() * 2 });
+                    candles.push({ time, open, high, low, close });
+                    closes.push(close);
+                });
 
-                // RSI Simulation bounded 20-80
-                const rsiBase = 50 + Math.sin(i / 8) * 25;
-                const rsiVal = rsiBase + (Math.random() - 0.5) * 5;
-                rsi.push({ time, value: Math.max(0, Math.min(100, rsiVal)) });
-                rsiMa.push({ time, value: Math.max(0, Math.min(100, rsiBase - 2)) });
-            }
-            return { candles, ma50, ma20, bbArea, rsi, rsiMa };
-        };
+                // Update UI state
+                const latestPrice = closes[closes.length - 1];
+                setCurrentPriceDisplay(`$${latestPrice.toFixed(2)}`);
+                setLastUpdateTime(new Date().toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', timeZoneName: 'short' }));
 
-        const data = generateData();
+                // Calculate Mathematical Indicators
+                const sma50Result = SMA.calculate({ period: 50, values: closes });
+                const sma20Result = SMA.calculate({ period: 20, values: closes });
+                const bbResult = BollingerBands.calculate({ period: 20, stdDev: 2, values: closes });
+                const rsiResult = RSI.calculate({ period: 14, values: closes });
 
-        bbAreaSeries.setData(data.bbArea);
-        candleSeries.setData(data.candles);
-        ma50Series.setData(data.ma50);
-        ma20Series.setData(data.ma20);
-        rsiSeries.setData(data.rsi);
-        rsiMaSeries.setData(data.rsiMa);
+                // Map results to precise time intervals (accounting for calculation lag)
+                const ma50 = sma50Result.map((val, idx) => ({ time: candles[idx + 49].time, value: val }));
+                const ma20 = sma20Result.map((val, idx) => ({ time: candles[idx + 19].time, value: val }));
+                const bbArea = bbResult.map((val, idx) => ({ time: candles[idx + 19].time, value: val.upper })); // We use upper band as the top of the area
 
-        // --- Custom Price Lines ---
-        const createTargetLine = (series: any, price: number, color: string, style: LineStyle, width: number) => {
-            series.createPriceLine({ price, color, lineWidth: width, lineStyle: style, axisLabelVisible: true, title: '' });
-        };
+                const rsiSeriesData = rsiResult.map((val, idx) => ({ time: candles[idx + 13].time, value: val }));
 
-        createTargetLine(candleSeries, 4180, '#10B981', LineStyle.Solid, 2);
-        createTargetLine(candleSeries, 4164, '#10B981', LineStyle.Solid, 2);
-        createTargetLine(candleSeries, 4127, '#111827', LineStyle.Solid, 2);
-        createTargetLine(candleSeries, 4094, '#2563EB', LineStyle.Solid, 2);
-        createTargetLine(candleSeries, 4055, '#EF4444', LineStyle.Dashed, 1);
-        createTargetLine(candleSeries, 4021, '#EF4444', LineStyle.Dashed, 1);
+                // RSI 9-MA
+                const rsiMaResult = SMA.calculate({ period: 9, values: rsiResult });
+                const rsiMaSeriesData = rsiMaResult.map((val, idx) => ({ time: rsiSeriesData[idx + 8].time, value: val }));
 
-        createTargetLine(rsiSeries, 70, '#9CA3AF', LineStyle.Dotted, 1);
-        createTargetLine(rsiSeries, 50, '#9CA3AF', LineStyle.Dotted, 1);
-        createTargetLine(rsiSeries, 30, '#9CA3AF', LineStyle.Dotted, 1);
+                // Inject Data to Charts
+                candleSeries.setData(candles);
+                ma50Series.setData(ma50);
+                ma20Series.setData(ma20);
+                bbAreaSeries.setData(bbArea);
+                rsiSeries.setData(rsiSeriesData);
+                rsiMaSeries.setData(rsiMaSeriesData);
 
-        // Scale Ranges
-        topChart.priceScale('right').applyOptions({
-            autoScale: false,
-            scaleMargins: { top: 0.1, bottom: 0.1 },
-        });
-        candleSeries.applyOptions({
-            autoscaleInfoProvider: () => ({ priceRange: { minValue: 3950, maxValue: 4250 } }),
-        });
+                // --- Dynamic Price Lines (Targets & Levels) ---
+                const createTargetLine = (series: any, price: number, color: string, style: LineStyle, width: number) => {
+                    series.createPriceLine({ price, color, lineWidth: width, lineStyle: style, axisLabelVisible: true, title: '' });
+                };
 
-        bottomChart.priceScale('right').applyOptions({
-            autoScale: false,
-            scaleMargins: { top: 0.1, bottom: 0.1 },
-        });
-        rsiSeries.applyOptions({
-            autoscaleInfoProvider: () => ({ priceRange: { minValue: 10, maxValue: 90 } }),
-        });
+                // Create visually exact layout but dynamically scaled to REAL market price
+                createTargetLine(candleSeries, latestPrice * 1.015, '#10B981', LineStyle.Solid, 2); // Green Top
+                createTargetLine(candleSeries, latestPrice * 1.010, '#10B981', LineStyle.Solid, 2); // Green Bottom
+                createTargetLine(candleSeries, latestPrice * 1.002, '#111827', LineStyle.Solid, 2); // Black
+                createTargetLine(candleSeries, latestPrice * 0.995, '#2563EB', LineStyle.Solid, 2); // Blue
+                createTargetLine(candleSeries, latestPrice * 0.985, '#EF4444', LineStyle.Dashed, 1); // Red 1
+                createTargetLine(candleSeries, latestPrice * 0.975, '#EF4444', LineStyle.Dashed, 1); // Red 2
 
-        // Forecast Arrow Marker
-        const targetCandle = data.candles[data.candles.length - 15]; 
-        if (targetCandle) {
-            candleSeries.setMarkers([
-                {
-                    time: targetCandle.time,
-                    position: 'aboveBar',
-                    color: '#2563EB',
-                    shape: 'arrowUp',
-                    text: '',
-                    size: 3, // Thicker arrow
+                createTargetLine(rsiSeries, 70, '#9CA3AF', LineStyle.Dotted, 1);
+                createTargetLine(rsiSeries, 50, '#9CA3AF', LineStyle.Dotted, 1);
+                createTargetLine(rsiSeries, 30, '#9CA3AF', LineStyle.Dotted, 1);
+
+                bottomChart.priceScale('right').applyOptions({
+                    autoScale: false,
+                    scaleMargins: { top: 0.1, bottom: 0.1 },
+                });
+                rsiSeries.applyOptions({
+                    autoscaleInfoProvider: () => ({ priceRange: { minValue: 10, maxValue: 90 } }),
+                });
+
+                // Forecast Arrow Marker (pointing to the +1.5% target)
+                const targetCandle = candles[candles.length - 8]; 
+                if (targetCandle) {
+                    candleSeries.setMarkers([
+                        {
+                            time: targetCandle.time,
+                            position: 'aboveBar',
+                            color: '#2563EB',
+                            shape: 'arrowUp',
+                            text: '',
+                            size: 3,
+                        }
+                    ]);
                 }
-            ]);
-        }
 
-        topChart.timeScale().fitContent();
-        bottomChart.timeScale().fitContent();
+                topChart.timeScale().fitContent();
+                bottomChart.timeScale().fitContent();
+
+            } catch (error) {
+                console.error("Error fetching live data: ", error);
+                setCurrentPriceDisplay("API Error");
+            }
+        };
+
+        fetchRealData();
+        // Optional: Poll every 30 seconds for live updates
+        const interval = setInterval(fetchRealData, 30000);
 
         // --- Perfect ResizeObserver Implementation ---
         const resizeObserver = new ResizeObserver((entries) => {
@@ -270,6 +273,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
         resizeObserver.observe(bottomChartContainerRef.current);
 
         return () => {
+            clearInterval(interval);
             resizeObserver.disconnect();
             topChart.remove();
             bottomChart.remove();
@@ -292,7 +296,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '20px 24px', zIndex: 10, pointerEvents: 'none' }}>
                 
                 <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '20px', fontWeight: '700', marginRight: '12px', letterSpacing: '-0.02em' }}>Gold</span>
+                    <span style={{ fontSize: '20px', fontWeight: '700', marginRight: '12px', letterSpacing: '-0.02em' }}>Gold (Live)</span>
                     <span style={{ 
                         backgroundColor: '#F3F4F6', 
                         color: '#4B5563', 
@@ -300,14 +304,16 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                         borderRadius: '6px', 
                         fontSize: '11px', 
                         fontWeight: '600',
-                        letterSpacing: '0.02em'
+                        letterSpacing: '0.02em',
+                        marginRight: '12px'
                     }}>
                         30 MIN
                     </span>
+                    <span style={{ fontSize: '18px', fontWeight: '600', color: '#10B981' }}>{currentPriceDisplay}</span>
                 </div>
                 
                 <div style={{ fontSize: '12px', color: '#6B7280', marginBottom: '20px', fontWeight: '500' }}>
-                    Thursday, July 9, 2026 5:51:33 PM CET
+                    {lastUpdateTime || 'Fetching real-time data...'}
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', fontWeight: '500' }}>
@@ -322,7 +328,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                         </div>
                     </div>
                     <div style={{ color: '#9CA3AF' }}>
-                        Research © 2026 Trading Central
+                        Research © {new Date().getFullYear()} Trading Central
                     </div>
                 </div>
             </div>
