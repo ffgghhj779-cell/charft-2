@@ -117,14 +117,14 @@ export const TradingCentralAnalysisChart: React.FC = () => {
 
         const rsiSeries = bottomChart.addSeries(LineSeries, {
             color: '#2563EB', // Royal Blue
-            lineWidth: 1.5,
+            lineWidth: 2,
             priceLineVisible: false,
             lastValueVisible: false,
         });
 
         const rsiMaSeries = bottomChart.addSeries(LineSeries, {
             color: '#EF4444', // Red
-            lineWidth: 1.5,
+            lineWidth: 2,
             priceLineVisible: false,
             lastValueVisible: false,
         });
