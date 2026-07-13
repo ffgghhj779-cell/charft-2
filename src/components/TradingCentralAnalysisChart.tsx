@@ -5,8 +5,6 @@ import {
     LineStyle,
     ColorType,
     Time,
-    IChartApi,
-    ISeriesApi,
     IPriceLine,
 } from 'lightweight-charts';
 import { SMA, RSI, BollingerBands } from 'technicalindicators';
@@ -28,7 +26,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
 
         const commonChartOptions = {
             layout: {
-                background: { type: ColorType.Solid, color: '#ffffff' }, // Flat pristine white
+                background: { type: ColorType.Solid, color: '#ffffff' }, 
                 textColor: '#6B7280',
                 fontFamily: premiumFont,
                 fontSize: 11,
@@ -52,11 +50,12 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             rightPriceScale: {
                 borderColor: 'rgba(209, 213, 219, 0.5)',
                 autoScale: true,
+                scaleMargins: { top: 0.1, bottom: 0.2 }, // Give room for targets
             },
             timeScale: {
-                borderColor: 'rgba(209, 213, 219, 0.5)',
-                timeVisible: true,
-                secondsVisible: false,
+                borderColor: 'transparent',
+                timeVisible: false, 
+                visible: false, // HIDE top X-axis to prevent stacked double axes!
                 fixLeftEdge: true,
             },
         });
@@ -71,7 +70,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             timeScale: {
                 borderColor: 'rgba(209, 213, 219, 0.5)',
                 timeVisible: true,
-                visible: true,
+                visible: true, // Only bottom chart shows time
             },
         });
 
@@ -84,11 +83,10 @@ export const TradingCentralAnalysisChart: React.FC = () => {
 
         // --- Exact Image Series Definitions ---
         
-        // Red Target Area (Filled zone)
         const targetZoneSeries = topChart.addBaselineSeries({
-            topFillColor1: 'rgba(255, 0, 0, 0.1)', // Light red fill above baseline
-            topFillColor2: 'rgba(255, 0, 0, 0.1)',
-            bottomFillColor1: 'rgba(0, 0, 0, 0)', // Transparent below baseline
+            topFillColor1: 'rgba(255, 0, 0, 0.12)', 
+            topFillColor2: 'rgba(255, 0, 0, 0.12)',
+            bottomFillColor1: 'rgba(0, 0, 0, 0)', 
             bottomFillColor2: 'rgba(0, 0, 0, 0)',
             topLineColor: 'transparent',
             bottomLineColor: 'transparent',
@@ -96,7 +94,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             crosshairMarkerVisible: false,
             priceLineVisible: false,
             lastValueVisible: false,
-            baseValue: { type: 'price', price: 0 }, // Will update dynamically
+            baseValue: { type: 'price', price: 0 }, 
         });
 
         const bbAreaSeries = topChart.addAreaSeries({
@@ -118,7 +116,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
         });
 
         const ma50Series = topChart.addLineSeries({
-            color: '#2563EB', // Blue
+            color: '#2563EB', 
             lineWidth: 1,
             crosshairMarkerVisible: false,
             priceLineVisible: false,
@@ -126,7 +124,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
         });
 
         const ma20Series = topChart.addLineSeries({
-            color: '#EF4444', // Red
+            color: '#EF4444', 
             lineWidth: 1,
             crosshairMarkerVisible: false,
             priceLineVisible: false,
@@ -176,10 +174,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             autoscaleInfoProvider: () => ({ priceRange: { minValue: 10, maxValue: 90 } }),
         });
 
-        // Current exact horizontal lines instances
         let priceLines: IPriceLine[] = [];
-
-        // Arrow Sync Logic
         let currentTargetPrice = 0;
         let lastCandleTime: Time | null = null;
         let lastCandleClose = 0;
@@ -190,69 +185,55 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             const startX = topChart.timeScale().timeToCoordinate(lastCandleTime);
             const startY = candleSeries.priceToCoordinate(lastCandleClose);
             
-            // Arrow points slightly into the future to create the diagonal look
-            // By estimating 15 bars into the future (15 * 60 seconds)
-            let futureX = startX ? startX + 60 : null; // roughly 60px right
+            // Fixed pixel offset guarantees a gorgeous, huge diagonal arrow on any scale
+            let futureX = startX ? startX + 80 : null; 
             const endY = candleSeries.priceToCoordinate(currentTargetPrice);
 
             if (startX !== null && startY !== null && futureX !== null && endY !== null) {
                 arrowPathRef.current.setAttribute('d', `M ${startX} ${startY} L ${futureX} ${endY}`);
             } else {
-                arrowPathRef.current.setAttribute('d', ''); // Hide if offscreen
+                arrowPathRef.current.setAttribute('d', ''); 
             }
         };
 
         topChart.timeScale().subscribeVisibleLogicalRangeChange(updateArrowOverlay);
         topChart.timeScale().subscribeSizeChange(updateArrowOverlay);
 
-        const drawTargetLines = (latestPrice: number) => {
-            // Remove old lines
+        const drawTargetLines = (latestPrice: number, highRange: number, lowRange: number) => {
             priceLines.forEach(line => candleSeries.removePriceLine(line));
             priceLines = [];
 
-            // Based on image: 
-            // - Top Green 2: + 1.5%
-            // - Top Green 1: + 0.8%
-            // - Blue Pivot: + 0.3%
-            // - Black Price: Current
-            // - Bottom Red 1: - 0.6%
-            // - Bottom Red 2: - 1.2%
+            // Professional dynamic spacing based on chart volatility (range), NOT flat percentages
+            // This guarantees beautiful, perfectly spaced targets that NEVER overlap.
+            const volatility = highRange - lowRange;
+            const spacer = Math.max(volatility * 0.15, latestPrice * 0.0005); 
 
-            // Adjusted for 1-minute realistic scale so they fit on screen
-            const tG2 = latestPrice * 1.0015;
-            const tG1 = latestPrice * 1.0008;
-            const tB  = latestPrice * 1.0003;
+            const tG2 = highRange + (spacer * 2);
+            const tG1 = highRange + spacer;
+            const tB  = latestPrice + (spacer * 0.5); // Pivot just above current
             const tC  = latestPrice;
-            const tR1 = latestPrice * 0.9992;
-            const tR2 = latestPrice * 0.9985;
+            const tR1 = lowRange - spacer;
+            const tR2 = lowRange - (spacer * 2);
 
-            currentTargetPrice = tR1; // Arrow points to Red 1
+            currentTargetPrice = tR1;
 
-            // Force the chart to zoom out enough to show all target lines!
             candleSeries.applyOptions({
                 autoscaleInfoProvider: () => ({
                     priceRange: {
-                        minValue: tR2 * 0.9998,
-                        maxValue: tG2 * 1.0002,
+                        minValue: tR2 - (spacer * 0.5),
+                        maxValue: tG2 + (spacer * 0.5),
                     },
                 }),
             });
 
-            // Configure Target Fill Zone (Between R1 and R2)
             targetZoneSeries.applyOptions({
                 baseValue: { type: 'price', price: tR2 }
             });
 
             const createLine = (price: number, color: string, title: string, style: LineStyle = LineStyle.Solid) => {
                 const line = candleSeries.createPriceLine({
-                    price,
-                    color,
-                    lineWidth: 1,
-                    lineStyle: style,
-                    axisLabelVisible: true,
-                    axisLabelColor: color,
-                    axisLabelTextColor: '#fff',
-                    title: '',
+                    price, color, lineWidth: 1, lineStyle: style,
+                    axisLabelVisible: true, axisLabelColor: color, axisLabelTextColor: '#fff', title: '',
                 });
                 priceLines.push(line);
             };
@@ -262,20 +243,16 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             createLine(tB,  '#2563EB', 'Pivot');
             createLine(tC,  '#111827', 'Current');
             createLine(tR1, '#EF4444', 'Target 1');
-            createLine(tR2, '#EF4444', 'Target 2', LineStyle.Solid); // Thick solid lines for red
-            
-            // RSI Lines
-            rsiSeries.createPriceLine({ price: 70, color: '#9CA3AF', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: '' });
-            rsiSeries.createPriceLine({ price: 50, color: '#9CA3AF', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: '' });
-            rsiSeries.createPriceLine({ price: 30, color: '#9CA3AF', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: '' });
+            createLine(tR2, '#EF4444', 'Target 2', LineStyle.Solid); 
         };
 
-        // --- Live Data Engine ---
         let ws: WebSocket;
         let isChartReady = false;
         let currentCandles: any[] = [];
         let currentCloses: number[] = [];
         let targetZoneData: any[] = [];
+        let globalHigh = 0;
+        let globalLow = Infinity;
 
         const initDataEngine = async () => {
             try {
@@ -284,12 +261,19 @@ export const TradingCentralAnalysisChart: React.FC = () => {
 
                 rawData.forEach((row: any) => {
                     const time = (row[0] / 1000) as Time;
-                    currentCandles.push({ time, open: parseFloat(row[1]), high: parseFloat(row[2]), low: parseFloat(row[3]), close: parseFloat(row[4]) });
-                    currentCloses.push(parseFloat(row[4]));
+                    const high = parseFloat(row[2]);
+                    const low = parseFloat(row[3]);
+                    const close = parseFloat(row[4]);
+                    
+                    if (high > globalHigh) globalHigh = high;
+                    if (low < globalLow) globalLow = low;
+
+                    currentCandles.push({ time, open: parseFloat(row[1]), high, low, close });
+                    currentCloses.push(close);
                 });
 
                 const latestPrice = currentCloses[currentCloses.length - 1];
-                drawTargetLines(latestPrice); // Establish targets
+                drawTargetLines(latestPrice, globalHigh, globalLow); 
 
                 targetZoneData = currentCandles.map(c => ({ time: c.time, value: currentTargetPrice }));
                 targetZoneSeries.setData(targetZoneData);
@@ -331,7 +315,6 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                 isChartReady = true;
                 updateArrowOverlay();
 
-                // Open WebSocket
                 ws = new WebSocket('wss://stream.binance.com:9443/ws/paxgusdt@kline_1m');
                 
                 ws.onmessage = (event) => {
@@ -342,12 +325,17 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                     
                     const tickTime = (kline.t / 1000) as Time;
                     const tickClose = parseFloat(kline.c);
+                    const tickHigh = parseFloat(kline.h);
+                    const tickLow = parseFloat(kline.l);
+
+                    if (tickHigh > globalHigh) globalHigh = tickHigh;
+                    if (tickLow < globalLow) globalLow = tickLow;
 
                     const newCandle = {
                         time: tickTime,
                         open: parseFloat(kline.o),
-                        high: parseFloat(kline.h),
-                        low: parseFloat(kline.l),
+                        high: tickHigh,
+                        low: tickLow,
                         close: tickClose,
                     };
 
@@ -355,14 +343,13 @@ export const TradingCentralAnalysisChart: React.FC = () => {
 
                     if (priceDisplayRef.current) priceDisplayRef.current.innerText = `$${tickClose.toFixed(2)}`;
 
-                    // Maintain arrays
                     if (tickTime === lastCandleTime) {
                         currentCandles[currentCandles.length - 1] = newCandle;
                         currentCloses[currentCloses.length - 1] = tickClose;
                     } else {
                         currentCandles.push(newCandle);
                         currentCloses.push(tickClose);
-                        targetZoneSeries.update({ time: tickTime, value: currentTargetPrice }); // Continue the red zone!
+                        targetZoneSeries.update({ time: tickTime, value: currentTargetPrice }); 
                         if (currentCandles.length > 500) {
                             currentCandles.shift();
                             currentCloses.shift();
@@ -371,7 +358,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
 
                     lastCandleTime = tickTime;
                     lastCandleClose = tickClose;
-                    updateArrowOverlay(); // Keep the arrow anchored to the live price!
+                    updateArrowOverlay(); 
 
                     try {
                         const newSma50 = SMA.calculate({ period: 50, values: currentCloses });
@@ -415,11 +402,23 @@ export const TradingCentralAnalysisChart: React.FC = () => {
         resizeObserver.observe(topChartContainerRef.current);
         resizeObserver.observe(bottomChartContainerRef.current);
 
+        // Remove TradingView Watermark Logo via DOM injection
+        const style = document.createElement('style');
+        style.innerHTML = `
+            a[href^="https://www.tradingview.com/"], .tv-lightweight-charts-logo {
+                display: none !important;
+                opacity: 0 !important;
+                visibility: hidden !important;
+            }
+        `;
+        document.head.appendChild(style);
+
         return () => {
             if (ws) ws.close();
             resizeObserver.disconnect();
             topChart.remove();
             bottomChart.remove();
+            document.head.removeChild(style);
         };
     }, []);
 
@@ -429,24 +428,31 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             className="relative w-full h-screen min-h-[600px] bg-white text-gray-900 font-sans antialiased flex flex-col overflow-hidden"
         >
             
-            {/* Flat pristine white header exactly matching the image */}
-            <div className="absolute top-0 left-0 right-0 pt-4 px-4 pb-2 z-10 pointer-events-none flex flex-col bg-white">
+            {/* COMPACT & PROFESSIONAL HEADER (Perfectly matching the image layout) */}
+            <div className="absolute top-0 left-0 right-0 pt-4 px-4 md:px-6 pb-2 z-10 pointer-events-none flex flex-col bg-white">
                 
-                <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[15px] font-bold text-black tracking-tight">Gold</span>
-                    <span className="border border-gray-300 bg-[#F3F4F6] text-gray-700 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider">
-                        30 MIN
-                    </span>
-                    <span ref={priceDisplayRef} className="text-sm font-bold text-gray-900 ml-auto transition-colors duration-500"></span>
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-2"></div>
-                    <div ref={timeDisplayRef} className="text-[10px] text-gray-500 font-medium"></div>
-                </div>
-                
-                <div ref={dateDisplayRef} className="text-[12px] text-gray-500 font-medium mb-3">
-                    Loading Date...
+                <div className="flex justify-between items-start mb-1">
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[16px] font-bold text-black tracking-tight">Gold</span>
+                            <span className="border border-gray-300 bg-[#F3F4F6] text-gray-600 px-1.5 py-[1px] text-[10px] font-semibold tracking-wider">
+                                30 MIN
+                            </span>
+                        </div>
+                        <div ref={dateDisplayRef} className="text-[11px] text-gray-500 font-medium">
+                            Loading Date...
+                        </div>
+                    </div>
+                    
+                    {/* Live data indicator pushed neatly to the top right */}
+                    <div className="flex items-center gap-2">
+                        <span ref={priceDisplayRef} className="text-[13px] font-bold text-gray-900"></span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                        <div ref={timeDisplayRef} className="text-[10px] text-gray-500 font-medium"></div>
+                    </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row md:justify-between md:items-center text-[10px] font-medium text-gray-500">
+                <div className="flex justify-between items-center text-[11px] font-medium text-gray-500 mt-3">
                     <div className="flex gap-4">
                         <div className="flex items-center gap-1.5">
                             <div className="w-3 h-0.5 bg-[#FF6B6B]"></div>
@@ -457,33 +463,33 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                             <span>MA 50</span>
                         </div>
                     </div>
-                    <div className="text-gray-400 hidden md:block">
+                    <div className="text-gray-400">
                         Research © {new Date().getFullYear()} Trading Central
                     </div>
                 </div>
             </div>
 
-            {/* Chart Container */}
-            <div className="flex flex-col w-full flex-grow pt-[100px] pb-6 px-4 md:px-6 relative z-0">
+            {/* CHART CONTAINER - Clean spacing, NO double axis */}
+            <div className="flex flex-col w-full flex-grow pt-[85px] pb-6 px-4 md:px-6 relative z-0">
                 
-                <div className="w-full h-[70%] bg-white relative">
+                <div className="w-full h-[73%] bg-white relative">
                     <div ref={topChartContainerRef} className="w-full h-full relative z-10" />
-                    {/* SVG ARROW OVERLAY */}
+                    {/* GIANT SVG ARROW OVERLAY */}
                     <svg ref={svgRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 20 }}>
                         <defs>
-                            <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-                                <polygon points="0 0, 8 4, 0 8" fill="#2563EB" />
+                            <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                                <polygon points="0 0, 6 3, 0 6" fill="#2563EB" />
                             </marker>
                         </defs>
-                        <path ref={arrowPathRef} stroke="#2563EB" strokeWidth="3" fill="none" markerEnd="url(#arrowhead)" style={{ filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.2))' }} />
+                        <path ref={arrowPathRef} stroke="#2563EB" strokeWidth="4" fill="none" markerEnd="url(#arrowhead)" />
                     </svg>
                 </div>
                 
-                <div className="w-full h-[30%] bg-white relative mt-2">
+                <div className="w-full h-[27%] bg-white relative mt-1 border-t border-gray-100">
                     <div ref={bottomChartContainerRef} className="w-full h-full relative z-10" />
                     
-                    {/* Flat RSI Legend exactly matching image */}
-                    <div className="absolute top-2 left-4 z-20 pointer-events-none flex gap-4 text-[10px] font-medium text-gray-500 bg-white/80 px-2 py-1">
+                    {/* Floating RSI Legend */}
+                    <div className="absolute top-2 left-4 z-20 pointer-events-none flex gap-4 text-[10px] font-medium text-gray-500 bg-white/90 backdrop-blur-sm px-2 py-1 rounded shadow-sm border border-gray-100">
                         <div className="flex items-center gap-1.5">
                             <div className="w-3 h-0.5 bg-[#2563EB]"></div>
                             <span>RSI</span>
