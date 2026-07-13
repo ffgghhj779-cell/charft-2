@@ -89,7 +89,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             topColor: 'rgba(255, 0, 0, 0.1)', // Light red fill
             bottomColor: 'rgba(255, 0, 0, 0.1)',
             lineColor: 'transparent',
-            lineWidth: 0,
+            lineWidth: 1,
             crosshairMarkerVisible: false,
             priceLineVisible: false,
             lastValueVisible: false,
