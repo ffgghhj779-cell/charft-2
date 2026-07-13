@@ -85,14 +85,18 @@ export const TradingCentralAnalysisChart: React.FC = () => {
         // --- Exact Image Series Definitions ---
         
         // Red Target Area (Filled zone)
-        const targetZoneSeries = topChart.addAreaSeries({
-            topColor: 'rgba(255, 0, 0, 0.1)', // Light red fill
-            bottomColor: 'rgba(255, 0, 0, 0.1)',
-            lineColor: 'transparent',
+        const targetZoneSeries = topChart.addBaselineSeries({
+            topFillColor1: 'rgba(255, 0, 0, 0.1)', // Light red fill above baseline
+            topFillColor2: 'rgba(255, 0, 0, 0.1)',
+            bottomFillColor1: 'rgba(0, 0, 0, 0)', // Transparent below baseline
+            bottomFillColor2: 'rgba(0, 0, 0, 0)',
+            topLineColor: 'transparent',
+            bottomLineColor: 'transparent',
             lineWidth: 1,
             crosshairMarkerVisible: false,
             priceLineVisible: false,
             lastValueVisible: false,
+            baseValue: { type: 'price', price: 0 }, // Will update dynamically
         });
 
         const bbAreaSeries = topChart.addAreaSeries({
