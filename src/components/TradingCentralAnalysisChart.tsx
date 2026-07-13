@@ -218,14 +218,25 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             // - Bottom Red 1: - 0.6%
             // - Bottom Red 2: - 1.2%
 
-            const tG2 = latestPrice * 1.015;
-            const tG1 = latestPrice * 1.008;
-            const tB  = latestPrice * 1.003;
+            // Adjusted for 1-minute realistic scale so they fit on screen
+            const tG2 = latestPrice * 1.0015;
+            const tG1 = latestPrice * 1.0008;
+            const tB  = latestPrice * 1.0003;
             const tC  = latestPrice;
-            const tR1 = latestPrice * 0.994;
-            const tR2 = latestPrice * 0.988;
+            const tR1 = latestPrice * 0.9992;
+            const tR2 = latestPrice * 0.9985;
 
             currentTargetPrice = tR1; // Arrow points to Red 1
+
+            // Force the chart to zoom out enough to show all target lines!
+            candleSeries.applyOptions({
+                autoscaleInfoProvider: () => ({
+                    priceRange: {
+                        minValue: tR2 * 0.9998,
+                        maxValue: tG2 * 1.0002,
+                    },
+                }),
+            });
 
             // Configure Target Fill Zone (Between R1 and R2)
             targetZoneSeries.applyOptions({
