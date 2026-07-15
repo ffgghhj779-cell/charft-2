@@ -14,6 +14,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
     const bottomChartContainerRef = useRef<HTMLDivElement>(null);
     const svgRef = useRef<SVGSVGElement>(null);
     const arrowPathRef = useRef<SVGPathElement>(null);
+    const tooltipRef = useRef<HTMLDivElement>(null);
     
     const priceDisplayRef = useRef<HTMLSpanElement>(null);
     const timeDisplayRef = useRef<HTMLDivElement>(null);
@@ -42,9 +43,15 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                 vertLine: { width: 1 as const, color: '#9CA3AF', style: LineStyle.Dotted, labelBackgroundColor: '#1F2937' },
                 horzLine: { width: 1 as const, color: '#9CA3AF', style: LineStyle.Dotted, labelBackgroundColor: '#1F2937' },
             },
-            handleScroll: { vertTouchDrag: false, horzTouchDrag: true, pressedMouseMove: true, mouseWheel: true },
+            handleScroll: { 
+                vertTouchDrag: true, // Crucial for mobile freedom
+                horzTouchDrag: true, 
+                pressedMouseMove: true, 
+                mouseWheel: true 
+            },
             handleScale: { pinch: true, axisPressedMouseMove: { time: true, price: false }, mouseWheel: true },
             kineticScroll: { touch: true, mouse: false }, 
+            trackingMode: { exitMode: 1 }, // OnTouchEnd exit crosshair mode smoothly
         };
 
         const topChart = createChart(topChartContainerRef.current, {
@@ -76,15 +83,25 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             },
         });
 
+        // FIX: Advanced cyclic lock to prevent mobile touch freeze
+        let isSyncingLeft = false;
+        let isSyncingRight = false;
+
         topChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-            if (range) bottomChart.timeScale().setVisibleLogicalRange(range);
+            if (range && !isSyncingRight) {
+                isSyncingLeft = true;
+                bottomChart.timeScale().setVisibleLogicalRange(range);
+                isSyncingLeft = false;
+            }
         });
         bottomChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-            if (range) topChart.timeScale().setVisibleLogicalRange(range);
+            if (range && !isSyncingLeft) {
+                isSyncingRight = true;
+                topChart.timeScale().setVisibleLogicalRange(range);
+                isSyncingRight = false;
+            }
         });
 
-        // --- Exact Image Series Definitions ---
-        
         const targetZoneSeries = topChart.addBaselineSeries({
             topFillColor1: 'rgba(255, 0, 0, 0.12)', 
             topFillColor2: 'rgba(255, 0, 0, 0.12)',
@@ -147,14 +164,54 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             lastValueVisible: false,
         });
 
-        // Sync Crosshairs
+        // Tooltip & Crosshair Sync
         topChart.subscribeCrosshairMove((param) => {
             if (param.time === undefined || param.point === undefined || param.point.x < 0 || param.point.y < 0) {
                 bottomChart.clearCrosshairPosition();
+                if (tooltipRef.current) tooltipRef.current.style.display = 'none';
             } else {
                 const rsiData = param.seriesData.get(rsiSeries) as any; 
                 const rsiVal = rsiData ? rsiData.value : 50;
                 bottomChart.setCrosshairPosition(rsiVal as number, param.time, rsiSeries);
+                
+                // Render Premium Tooltip 
+                const candleData = param.seriesData.get(candleSeries) as any;
+                if (candleData && tooltipRef.current) {
+                    tooltipRef.current.style.display = 'block';
+                    const dateStr = new Date((param.time as number) * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    tooltipRef.current.innerHTML = `
+                        <div style="font-weight: 700; margin-bottom: 6px; color: #111827; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; font-size: 11px;">${dateStr}</div>
+                        <div style="display: flex; justify-content: space-between; gap: 16px; margin-bottom: 2px;">
+                            <span style="color: #6B7280; font-size: 10px;">Open</span><span style="font-weight: 600; color: #111827; font-size: 10.5px;">${candleData.open.toFixed(2)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; gap: 16px; margin-bottom: 2px;">
+                            <span style="color: #6B7280; font-size: 10px;">High</span><span style="font-weight: 600; color: #10B981; font-size: 10.5px;">${candleData.high.toFixed(2)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; gap: 16px; margin-bottom: 2px;">
+                            <span style="color: #6B7280; font-size: 10px;">Low</span><span style="font-weight: 600; color: #EF4444; font-size: 10.5px;">${candleData.low.toFixed(2)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; gap: 16px;">
+                            <span style="color: #6B7280; font-size: 10px;">Close</span><span style="font-weight: 700; color: #2563EB; font-size: 10.5px;">${candleData.close.toFixed(2)}</span>
+                        </div>
+                    `;
+                    
+                    const tooltipWidth = 110;
+                    const tooltipHeight = 110;
+                    const margin = 15;
+                    
+                    let left = param.point.x + margin;
+                    if (left > topChartContainerRef.current!.clientWidth - tooltipWidth) {
+                        left = param.point.x - margin - tooltipWidth;
+                    }
+                    
+                    let top = param.point.y + margin;
+                    if (top > topChartContainerRef.current!.clientHeight - tooltipHeight) {
+                        top = param.point.y - tooltipHeight - margin;
+                    }
+                    
+                    tooltipRef.current.style.left = left + 'px';
+                    tooltipRef.current.style.top = top + 'px';
+                }
             }
         });
 
@@ -211,7 +268,6 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             priceLines.forEach(line => candleSeries.removePriceLine(line));
             priceLines = [];
 
-            // True Mathematical Pivot Point Formula
             const P = (highRange + lowRange + latestPrice) / 3;
             const R1 = (P * 2) - lowRange;
             const R2 = P + (highRange - lowRange);
@@ -381,8 +437,6 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                     lastCandleClose = tickClose;
                     updateArrowOverlay(); 
 
-                    // Dynamically recalculate targets every 5 seconds to avoid performance hit on every tick
-                    // But for true live, doing it on tick is fine if it's just math.
                     if (tickTime !== lastCandleTime) {
                          drawTargetLines(tickClose, globalHigh, globalLow);
                     }
@@ -450,7 +504,6 @@ export const TradingCentralAnalysisChart: React.FC = () => {
 
     return (
         <div 
-            style={{ touchAction: 'none' }} 
             className="relative w-full h-screen min-h-[600px] bg-white text-gray-900 font-sans antialiased flex flex-col overflow-hidden"
         >
             
@@ -478,7 +531,6 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Ultimate Premium Feature: Live Textual Preference Analysis */}
                 <div className="bg-[#F8FAFC] border-l-2 border-[#2563EB] px-3 py-2 my-1 rounded-r-md">
                     <span className="text-[11.5px] font-semibold text-gray-800 tracking-tight">
                         {preferenceText}
@@ -506,6 +558,8 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                 
                 <div className="w-full h-[73%] bg-white relative">
                     <div ref={topChartContainerRef} className="w-full h-full relative z-10" />
+                    
+                    {/* SVG ARROW */}
                     <svg ref={svgRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 20 }}>
                         <defs>
                             <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
@@ -514,6 +568,25 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                         </defs>
                         <path ref={arrowPathRef} stroke="#2563EB" strokeWidth="4" fill="none" markerEnd="url(#arrowhead)" />
                     </svg>
+
+                    {/* PREMIUM FLOATING TOOLTIP */}
+                    <div ref={tooltipRef} style={{
+                        position: 'absolute',
+                        display: 'none',
+                        padding: '10px 12px',
+                        boxSizing: 'border-box',
+                        fontSize: '12px',
+                        textAlign: 'left',
+                        zIndex: 1000,
+                        top: '12px',
+                        left: '12px',
+                        pointerEvents: 'none',
+                        border: '1px solid rgba(229, 231, 235, 0.8)',
+                        borderRadius: '8px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        backdropFilter: 'blur(4px)',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                    }}></div>
                 </div>
                 
                 <div className="w-full h-[27%] bg-white relative mt-1 border-t border-gray-100">
