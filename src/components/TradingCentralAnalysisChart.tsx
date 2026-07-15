@@ -485,8 +485,8 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                     </span>
                 </div>
 
-                <div className="flex justify-between items-center text-[10.5px] font-medium text-gray-500 mt-2">
-                    <div className="flex gap-4">
+                <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center text-[10px] md:text-[10.5px] font-medium text-gray-500 mt-2 gap-2 md:gap-0">
+                    <div className="flex flex-wrap gap-3 md:gap-4">
                         <div className="flex items-center gap-1.5">
                             <div className="w-3 h-[2px] bg-[#FF6B6B]"></div>
                             <span>MA 20 + Bollinger Bands</span>
@@ -496,13 +496,13 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                             <span>MA 50</span>
                         </div>
                     </div>
-                    <div className="text-gray-400">
+                    <div className="text-gray-400 hidden sm:block">
                         Research © {new Date().getFullYear()} Trading Central
                     </div>
                 </div>
             </div>
 
-            <div className="flex flex-col w-full flex-grow pt-[125px] pb-6 px-4 md:px-6 relative z-0">
+            <div className="flex flex-col w-full flex-grow pt-[160px] md:pt-[125px] pb-6 px-4 md:px-6 relative z-0">
                 
                 <div className="w-full h-[73%] bg-white relative">
                     <div ref={topChartContainerRef} className="w-full h-full relative z-10" />
