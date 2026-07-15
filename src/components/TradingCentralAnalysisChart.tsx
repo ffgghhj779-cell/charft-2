@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     createChart,
     CrosshairMode,
@@ -18,6 +18,8 @@ export const TradingCentralAnalysisChart: React.FC = () => {
     const priceDisplayRef = useRef<HTMLSpanElement>(null);
     const timeDisplayRef = useRef<HTMLDivElement>(null);
     const dateDisplayRef = useRef<HTMLDivElement>(null);
+
+    const [preferenceText, setPreferenceText] = useState<string>("Analyzing market data...");
 
     useEffect(() => {
         if (!topChartContainerRef.current || !bottomChartContainerRef.current) return;
@@ -50,12 +52,12 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             rightPriceScale: {
                 borderColor: 'rgba(209, 213, 219, 0.5)',
                 autoScale: true,
-                scaleMargins: { top: 0.1, bottom: 0.2 }, // Give room for targets
+                scaleMargins: { top: 0.1, bottom: 0.2 }, 
             },
             timeScale: {
                 borderColor: 'transparent',
                 timeVisible: false, 
-                visible: false, // HIDE top X-axis to prevent stacked double axes!
+                visible: false, 
                 fixLeftEdge: true,
             },
         });
@@ -70,7 +72,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             timeScale: {
                 borderColor: 'rgba(209, 213, 219, 0.5)',
                 timeVisible: true,
-                visible: true, // Only bottom chart shows time
+                visible: true, 
             },
         });
 
@@ -178,6 +180,7 @@ export const TradingCentralAnalysisChart: React.FC = () => {
         let currentTargetPrice = 0;
         let lastCandleTime: Time | null = null;
         let lastCandleClose = 0;
+        let isBullishTrend = false;
 
         const updateArrowOverlay = () => {
             if (!topChart || !candleSeries || !lastCandleTime || !arrowPathRef.current) return;
@@ -185,12 +188,17 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             const startX = topChart.timeScale().timeToCoordinate(lastCandleTime);
             const startY = candleSeries.priceToCoordinate(lastCandleClose);
             
-            // Fixed pixel offset guarantees a gorgeous, huge diagonal arrow on any scale
             let futureX = startX ? startX + 80 : null; 
             const endY = candleSeries.priceToCoordinate(currentTargetPrice);
 
             if (startX !== null && startY !== null && futureX !== null && endY !== null) {
                 arrowPathRef.current.setAttribute('d', `M ${startX} ${startY} L ${futureX} ${endY}`);
+                arrowPathRef.current.setAttribute('stroke', isBullishTrend ? '#10B981' : '#2563EB');
+                
+                const arrowMarker = document.getElementById('arrowhead-polygon');
+                if (arrowMarker) {
+                    arrowMarker.setAttribute('fill', isBullishTrend ? '#10B981' : '#2563EB');
+                }
             } else {
                 arrowPathRef.current.setAttribute('d', ''); 
             }
@@ -203,31 +211,44 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             priceLines.forEach(line => candleSeries.removePriceLine(line));
             priceLines = [];
 
-            // Professional dynamic spacing based on chart volatility (range), NOT flat percentages
-            // This guarantees beautiful, perfectly spaced targets that NEVER overlap.
-            const volatility = highRange - lowRange;
-            const spacer = Math.max(volatility * 0.15, latestPrice * 0.0005); 
+            // True Mathematical Pivot Point Formula
+            const P = (highRange + lowRange + latestPrice) / 3;
+            const R1 = (P * 2) - lowRange;
+            const R2 = P + (highRange - lowRange);
+            const S1 = (P * 2) - highRange;
+            const S2 = P - (highRange - lowRange);
 
-            const tG2 = highRange + (spacer * 2);
-            const tG1 = highRange + spacer;
-            const tB  = latestPrice + (spacer * 0.5); // Pivot just above current
-            const tC  = latestPrice;
-            const tR1 = lowRange - spacer;
-            const tR2 = lowRange - (spacer * 2);
+            isBullishTrend = latestPrice > P;
 
-            currentTargetPrice = tR1;
+            if (isBullishTrend) {
+                setPreferenceText(`Our preference: Long positions above ${P.toFixed(2)} with targets at ${R1.toFixed(2)} & ${R2.toFixed(2)} in extension.`);
+                currentTargetPrice = R1;
+                targetZoneSeries.applyOptions({
+                    baseValue: { type: 'price', price: R2 },
+                    topFillColor1: 'rgba(0, 0, 0, 0)',
+                    topFillColor2: 'rgba(0, 0, 0, 0)',
+                    bottomFillColor1: 'rgba(16, 185, 129, 0.12)', 
+                    bottomFillColor2: 'rgba(16, 185, 129, 0.12)'
+                });
+            } else {
+                setPreferenceText(`Our preference: Short positions below ${P.toFixed(2)} with targets at ${S1.toFixed(2)} & ${S2.toFixed(2)} in extension.`);
+                currentTargetPrice = S1;
+                targetZoneSeries.applyOptions({
+                    baseValue: { type: 'price', price: S2 },
+                    topFillColor1: 'rgba(239, 68, 68, 0.12)', 
+                    topFillColor2: 'rgba(239, 68, 68, 0.12)',
+                    bottomFillColor1: 'rgba(0, 0, 0, 0)',
+                    bottomFillColor2: 'rgba(0, 0, 0, 0)'
+                });
+            }
 
             candleSeries.applyOptions({
                 autoscaleInfoProvider: () => ({
                     priceRange: {
-                        minValue: tR2 - (spacer * 0.5),
-                        maxValue: tG2 + (spacer * 0.5),
+                        minValue: Math.min(S2, latestPrice) * 0.9995,
+                        maxValue: Math.max(R2, latestPrice) * 1.0005,
                     },
                 }),
-            });
-
-            targetZoneSeries.applyOptions({
-                baseValue: { type: 'price', price: tR2 }
             });
 
             const createLine = (price: number, color: string, title: string, style: LineStyle = LineStyle.Solid) => {
@@ -238,12 +259,12 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                 priceLines.push(line);
             };
 
-            createLine(tG2, '#10B981', 'Top Target 2');
-            createLine(tG1, '#10B981', 'Top Target 1');
-            createLine(tB,  '#2563EB', 'Pivot');
-            createLine(tC,  '#111827', 'Current');
-            createLine(tR1, '#EF4444', 'Target 1');
-            createLine(tR2, '#EF4444', 'Target 2', LineStyle.Solid); 
+            createLine(R2, '#10B981', 'Resistance 2 (Target 2)');
+            createLine(R1, '#10B981', 'Resistance 1 (Target 1)');
+            createLine(P,  '#2563EB', 'Pivot Point');
+            createLine(latestPrice, '#111827', 'Current');
+            createLine(S1, '#EF4444', 'Support 1 (Target 1)');
+            createLine(S2, '#EF4444', 'Support 2 (Target 2)', LineStyle.Solid); 
         };
 
         let ws: WebSocket;
@@ -360,6 +381,12 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                     lastCandleClose = tickClose;
                     updateArrowOverlay(); 
 
+                    // Dynamically recalculate targets every 5 seconds to avoid performance hit on every tick
+                    // But for true live, doing it on tick is fine if it's just math.
+                    if (tickTime !== lastCandleTime) {
+                         drawTargetLines(tickClose, globalHigh, globalLow);
+                    }
+
                     try {
                         const newSma50 = SMA.calculate({ period: 50, values: currentCloses });
                         if (newSma50.length > 0) ma50Series.update({ time: tickTime, value: newSma50[newSma50.length - 1] });
@@ -402,7 +429,6 @@ export const TradingCentralAnalysisChart: React.FC = () => {
         resizeObserver.observe(topChartContainerRef.current);
         resizeObserver.observe(bottomChartContainerRef.current);
 
-        // Remove TradingView Watermark Logo via DOM injection
         const style = document.createElement('style');
         style.innerHTML = `
             a[href^="https://www.tradingview.com/"], .tv-lightweight-charts-logo {
@@ -428,11 +454,10 @@ export const TradingCentralAnalysisChart: React.FC = () => {
             className="relative w-full h-screen min-h-[600px] bg-white text-gray-900 font-sans antialiased flex flex-col overflow-hidden"
         >
             
-            {/* COMPACT & PROFESSIONAL HEADER (Perfectly matching the image layout) */}
-            <div className="absolute top-0 left-0 right-0 pt-4 px-4 md:px-6 pb-2 z-10 pointer-events-none flex flex-col bg-white">
+            <div className="absolute top-0 left-0 right-0 pt-4 px-4 md:px-6 pb-2 z-10 pointer-events-none flex flex-col bg-white border-b border-gray-100 shadow-sm">
                 
-                <div className="flex justify-between items-start mb-1">
-                    <div className="flex flex-col gap-1">
+                <div className="flex justify-between items-start mb-2">
+                    <div className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-2">
                             <span className="text-[16px] font-bold text-black tracking-tight">Gold</span>
                             <span className="border border-gray-300 bg-[#F3F4F6] text-gray-600 px-1.5 py-[1px] text-[10px] font-semibold tracking-wider">
@@ -444,22 +469,30 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                         </div>
                     </div>
                     
-                    {/* Live data indicator pushed neatly to the top right */}
-                    <div className="flex items-center gap-2">
-                        <span ref={priceDisplayRef} className="text-[13px] font-bold text-gray-900"></span>
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                        <div ref={timeDisplayRef} className="text-[10px] text-gray-500 font-medium"></div>
+                    <div className="flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-2">
+                            <span ref={priceDisplayRef} className="text-[16px] font-bold text-gray-900 tracking-tight"></span>
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                            <div ref={timeDisplayRef} className="text-[10px] text-gray-500 font-medium"></div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="flex justify-between items-center text-[11px] font-medium text-gray-500 mt-3">
+                {/* Ultimate Premium Feature: Live Textual Preference Analysis */}
+                <div className="bg-[#F8FAFC] border-l-2 border-[#2563EB] px-3 py-2 my-1 rounded-r-md">
+                    <span className="text-[11.5px] font-semibold text-gray-800 tracking-tight">
+                        {preferenceText}
+                    </span>
+                </div>
+
+                <div className="flex justify-between items-center text-[10.5px] font-medium text-gray-500 mt-2">
                     <div className="flex gap-4">
                         <div className="flex items-center gap-1.5">
-                            <div className="w-3 h-0.5 bg-[#FF6B6B]"></div>
+                            <div className="w-3 h-[2px] bg-[#FF6B6B]"></div>
                             <span>MA 20 + Bollinger Bands</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                            <div className="w-3 h-0.5 bg-[#2563EB]"></div>
+                            <div className="w-3 h-[2px] bg-[#2563EB]"></div>
                             <span>MA 50</span>
                         </div>
                     </div>
@@ -469,16 +502,14 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                 </div>
             </div>
 
-            {/* CHART CONTAINER - Clean spacing, NO double axis */}
-            <div className="flex flex-col w-full flex-grow pt-[85px] pb-6 px-4 md:px-6 relative z-0">
+            <div className="flex flex-col w-full flex-grow pt-[125px] pb-6 px-4 md:px-6 relative z-0">
                 
                 <div className="w-full h-[73%] bg-white relative">
                     <div ref={topChartContainerRef} className="w-full h-full relative z-10" />
-                    {/* GIANT SVG ARROW OVERLAY */}
                     <svg ref={svgRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 20 }}>
                         <defs>
                             <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-                                <polygon points="0 0, 6 3, 0 6" fill="#2563EB" />
+                                <polygon id="arrowhead-polygon" points="0 0, 6 3, 0 6" fill="#2563EB" />
                             </marker>
                         </defs>
                         <path ref={arrowPathRef} stroke="#2563EB" strokeWidth="4" fill="none" markerEnd="url(#arrowhead)" />
@@ -488,14 +519,13 @@ export const TradingCentralAnalysisChart: React.FC = () => {
                 <div className="w-full h-[27%] bg-white relative mt-1 border-t border-gray-100">
                     <div ref={bottomChartContainerRef} className="w-full h-full relative z-10" />
                     
-                    {/* Floating RSI Legend */}
                     <div className="absolute top-2 left-4 z-20 pointer-events-none flex gap-4 text-[10px] font-medium text-gray-500 bg-white/90 backdrop-blur-sm px-2 py-1 rounded shadow-sm border border-gray-100">
                         <div className="flex items-center gap-1.5">
-                            <div className="w-3 h-0.5 bg-[#2563EB]"></div>
+                            <div className="w-3 h-[2px] bg-[#2563EB]"></div>
                             <span>RSI</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                            <div className="w-3 h-0.5 bg-[#EF4444]"></div>
+                            <div className="w-3 h-[2px] bg-[#EF4444]"></div>
                             <span>9MA</span>
                         </div>
                     </div>
